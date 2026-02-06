@@ -1,7 +1,26 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:proyecto_ocr/core/data/remote/send_image_service.dart';
+import 'package:proyecto_ocr/core/config/backend_config.dart';
+import 'package:go_router/go_router.dart';
+import 'package:proyecto_ocr/features/selection_service/selection.service_page.dart';
 
 class ProcessingScreen extends StatefulWidget {
-  const ProcessingScreen({super.key});
+  final String base64Image;
+  final String? base64ImageBack; // Imagen trasera opcional
+  final ServiceType service;
+  final Function(List results) onComplete;
+  final Function() onError;
+
+  const ProcessingScreen({
+    super.key,
+    required this.base64Image,
+    this.base64ImageBack,
+    required this.service,
+    required this.onComplete,
+    required this.onError,
+  });
 
   @override
   State<ProcessingScreen> createState() => _ProcessingScreenState();
@@ -18,6 +37,71 @@ class _ProcessingScreenState extends State<ProcessingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
+    _processSelectedService();
+  }
+
+  Future<void> _processSelectedService() async {
+    final backendUrl = BackendConfig.consultarServicioUrl;
+    // Mapear el enum del frontend al string que espera el backend
+    final serviceTypeString = BackendConfig.getServiceTypeString(
+      widget.service,
+    );
+
+    try {
+      // Timeout de 120 segundos (web scraping puede tardar)
+      final response =
+          await sendImageToBackend(
+            base64Image: widget.base64Image,
+            base64ImageBack: widget.base64ImageBack,
+            serviceType: serviceTypeString,
+            backendUrl: backendUrl,
+          ).timeout(
+            const Duration(seconds: 120),
+            onTimeout: () {
+              throw TimeoutException(
+                'Tiempo de espera excedido para $serviceTypeString',
+              );
+            },
+          );
+
+      final json = jsonDecode(response.body);
+
+      // Estructurar la respuesta en formato array para compatibilidad con results_page
+      final result = {
+        'serviceType': serviceTypeString,
+        'success': json['success'] ?? false,
+        'data': json['data'],
+        'message': json['message'],
+        'error': json['error'],
+      };
+
+      if (!mounted) return;
+
+      // Si la consulta fue exitosa, navegar a resultados
+      if (result['success']) {
+        context.go('/results', extra: [result]);
+      } else {
+        // Si falló, mostrar error pero permitir ver la pantalla de resultados
+        context.go('/results', extra: [result]);
+      }
+    } catch (e) {
+      // Error de conexión o procesamiento
+      debugPrint('Error en procesamiento de $serviceTypeString: $e');
+      if (!mounted) return;
+
+      context.go(
+        '/results',
+        extra: [
+          {
+            'serviceType': serviceTypeString,
+            'success': false,
+            'data': null,
+            'message': null,
+            'error': 'Error al procesar la consulta: ${e.toString()}',
+          },
+        ],
+      );
+    }
   }
 
   @override
@@ -37,7 +121,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
             children: [
               // Header con indicador de paso
               _buildHeader(),
-              
+
               // Contenido principal centrado
               Expanded(
                 child: Center(
@@ -51,9 +135,9 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                         const SizedBox(height: 40),
 
                         // Título principal
-                        const Text(
-                          'Analizando información',
-                          style: TextStyle(
+                        Text(
+                          _getServiceTitle(),
+                          style: const TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                             color: Color(0xFF111827),
@@ -67,7 +151,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
-                            'Estamos procesando los datos y consultando registros públicos disponibles',
+                            _getServiceDescription(),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.grey[600],
@@ -85,7 +169,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                   ),
                 ),
               ),
-              
+
               // Footer informativo
               _buildFooter(),
             ],
@@ -107,10 +191,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
             decoration: BoxDecoration(
               color: const Color(0xFFF3F4F6),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE5E7EB),
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -120,7 +201,9 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[700]!),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Colors.grey[700]!,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -167,27 +250,22 @@ class _ProcessingScreenState extends State<ProcessingScreen>
                 height: 120,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFE5E7EB),
-                    width: 2,
-                  ),
+                  border: Border.all(color: const Color(0xFFE5E7EB), width: 2),
                 ),
               );
             },
           ),
-          
+
           // Anillo giratorio con gradiente
           RotationTransition(
             turns: _rotationController,
             child: SizedBox(
               width: 120,
               height: 120,
-              child: CustomPaint(
-                painter: _SpinnerPainter(),
-              ),
+              child: CustomPaint(painter: _SpinnerPainter()),
             ),
           ),
-          
+
           // Ícono central con fondo
           Container(
             width: 72,
@@ -196,15 +274,44 @@ class _ProcessingScreenState extends State<ProcessingScreen>
               color: Colors.black,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.document_scanner_outlined,
-              size: 36,
-              color: Colors.white,
-            ),
+            child: Icon(_getServiceIcon(), size: 36, color: Colors.white),
           ),
         ],
       ),
     );
+  }
+
+  String _getServiceTitle() {
+    switch (widget.service) {
+      case ServiceType.luz:
+        return 'Consultando Planilla';
+      case ServiceType.matriculacionVehicular:
+        return 'Verificando Matriculación';
+      case ServiceType.ocr:
+        return 'Digitalizando Documento';
+    }
+  }
+
+  String _getServiceDescription() {
+    switch (widget.service) {
+      case ServiceType.luz:
+        return 'Conectando con EERSSA para obtener valores pendientes...';
+      case ServiceType.matriculacionVehicular:
+        return 'Consultando base de datos del SRI...';
+      case ServiceType.ocr:
+        return 'Extrayendo información de la cédula...';
+    }
+  }
+
+  IconData _getServiceIcon() {
+    switch (widget.service) {
+      case ServiceType.luz:
+        return Icons.lightbulb_outlined;
+      case ServiceType.matriculacionVehicular:
+        return Icons.directions_car_outlined;
+      case ServiceType.ocr:
+        return Icons.document_scanner_outlined;
+    }
   }
 
   Widget _buildProgressSteps() {
@@ -214,10 +321,7 @@ class _ProcessingScreenState extends State<ProcessingScreen>
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: const Color(0xFFE5E7EB),
-          width: 1,
-        ),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
       ),
       child: Column(
         children: [
@@ -230,14 +334,14 @@ class _ProcessingScreenState extends State<ProcessingScreen>
           const SizedBox(height: 20),
           _AnimatedStep(
             icon: Icons.search_outlined,
-            text: 'Consultando antecedentes',
+            text: 'Realizando búsqueda',
             delay: Duration(milliseconds: 600),
             index: 2,
           ),
           const SizedBox(height: 20),
           _AnimatedStep(
             icon: Icons.verified_outlined,
-            text: 'Verificando registros públicos',
+            text: 'Consultando lo requerido',
             delay: Duration(milliseconds: 1000),
             index: 3,
           ),
@@ -252,14 +356,10 @@ class _ProcessingScreenState extends State<ProcessingScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.lock_outline,
-            size: 16,
-            color: Colors.grey[500],
-          ),
+          Icon(Icons.lock_outline, size: 16, color: Colors.grey[500]),
           const SizedBox(width: 8),
           Text(
-            'Proceso seguro y encriptado',
+            'Proceso seguro',
             style: TextStyle(
               fontSize: 13,
               color: Colors.grey[600],
@@ -309,26 +409,17 @@ class _AnimatedStepState extends State<_AnimatedStep>
     _opacityAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(-0.15, 0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
 
     _scaleAnimation = Tween<double>(
       begin: 0.9,
       end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutBack,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     // Iniciar animación después del delay
     Future.delayed(widget.delay, () {
@@ -361,9 +452,7 @@ class _AnimatedStepState extends State<_AnimatedStep>
               color: _isActive ? Colors.white : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: _isActive 
-                    ? const Color(0xFFE5E7EB) 
-                    : Colors.transparent,
+                color: _isActive ? const Color(0xFFE5E7EB) : Colors.transparent,
                 width: 1,
               ),
               boxShadow: _isActive
@@ -386,8 +475,8 @@ class _AnimatedStepState extends State<_AnimatedStep>
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: _isActive 
-                            ? Colors.black 
+                        color: _isActive
+                            ? Colors.black
                             : const Color(0xFFE5E7EB),
                         shape: BoxShape.circle,
                       ),
@@ -412,8 +501,8 @@ class _AnimatedStepState extends State<_AnimatedStep>
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: _isActive 
-                              ? const Color(0xFF111827) 
+                          color: _isActive
+                              ? const Color(0xFF111827)
                               : Colors.grey[400],
                           height: 1.4,
                         ),
@@ -475,13 +564,15 @@ class _PulsingRingState extends State<_PulsingRing>
       duration: const Duration(milliseconds: 1500),
     )..repeat();
 
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
-    _opacityAnimation = Tween<double>(begin: 0.6, end: 0.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
+    _opacityAnimation = Tween<double>(
+      begin: 0.6,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override

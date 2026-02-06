@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "flutter pub add http",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"pub",
+				"add",
+				"http"
+			]
+		}
+	]
+}
