@@ -481,6 +481,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return 'Impuesto Predial Urbano';
       case 'sri_matriculacion':
         return 'Matriculación Vehicular';
+      case 'ant_multas':
+        return 'Multas de Tránsito ANT';
       default:
         return type.replaceAll('_', ' ').toUpperCase();
     }
@@ -498,6 +500,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return Icons.home_work_outlined;
       case 'sri_matriculacion':
         return Icons.directions_car_outlined;
+      case 'ant_multas':
+        return Icons.traffic_outlined;
       default:
         return Icons.description_outlined;
     }
@@ -879,6 +883,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return _buildMatriculacionCard(service);
       case 'ocr_cedula':
         return _buildOcrCard(service);
+      case 'ant_multas':
+        return _buildAntCard(service);
       default:
         return _buildGenericCard(service);
     }
@@ -1185,13 +1191,33 @@ class _ResultsScreenState extends State<ResultsScreen> {
         t.contains('INSTRUCCION');
   }
 
-  Widget _buildErrorCard(ServiceData service) {
+  Widget _buildAntCard(ServiceData service) {
+    // El backend envuelve la respuesta ANT en 'datos_servicio'
+    final datosServicio = service.data?['datos_servicio'];
+    if (datosServicio == null) return _buildGenericCard(service);
+
+    final nombre = datosServicio['nombre']?.toString() ?? 'N/A';
+    final puntos = datosServicio['puntos']?.toString() ?? '0';
+    final resumen = datosServicio['resumen'] as Map<dynamic, dynamic>?;
+    final infracciones = datosServicio['infracciones'] as List<dynamic>?;
+
+    // Extraer total de valores pendientes
+    String totalPendiente = '\$ 0,00';
+    if (resumen != null && resumen['total'] != null) {
+      totalPendiente = resumen['total'].toString();
+    }
+
+    final hasMultas = infracciones != null && infracciones.isNotEmpty;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red[200]!, width: 2),
+        border: Border.all(
+          color: hasMultas ? Colors.orange[200]! : Colors.green[200]!,
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -1201,29 +1227,258 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ],
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.red[50],
-              shape: BoxShape.circle,
+              color: hasMultas ? Colors.orange[50] : Colors.green[50],
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(14),
+                topRight: Radius.circular(14),
+              ),
             ),
-            child: Icon(Icons.error_outline, size: 48, color: Colors.red[700]),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Error en la consulta',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: Colors.red[700],
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.traffic_outlined,
+                    color: hasMultas ? Colors.orange[700] : Colors.green[700],
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ANT - Multas de Tránsito',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: hasMultas
+                              ? Colors.orange[900]
+                              : Colors.green[900],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        nombre,
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            service.error ?? 'No se pudo completar la consulta',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Puntos
+                Row(
+                  children: [
+                    Icon(Icons.star_outline, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Puntos actuales: ',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    Text(
+                      puntos,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.blue[700],
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (hasMultas) ...[
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Total Pendiente
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total Pendiente',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.orange[900],
+                          ),
+                        ),
+                        Text(
+                          totalPendiente,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Resumen de valores
+                  if (resumen != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Resumen de Valores',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    if (resumen['pendiente'] != null)
+                      _buildInfoRow(
+                        'Valor Pendiente',
+                        resumen['pendiente'].toString(),
+                      ),
+                    if (resumen['convenio'] != null)
+                      _buildInfoRow(
+                        'Valor Convenio',
+                        resumen['convenio'].toString(),
+                      ),
+                    if (resumen['intereses'] != null)
+                      _buildInfoRow(
+                        'Intereses',
+                        resumen['intereses'].toString(),
+                      ),
+                  ],
+
+                  const SizedBox(height: 20),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Tabla de Infracciones
+                  Text(
+                    'Infracciones (${infracciones.length})',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.grey[800],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...infracciones.map((infraccion) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red[100]!),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  infraccion['infraccion']?.toString() ?? 'N/A',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red[900],
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                infraccion['total']?.toString() ?? '\$ 0,00',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.red[700],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Citación: ${infraccion['citacion']?.toString() ?? 'N/A'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          Text(
+                            'Fecha: ${infraccion['fecha']?.toString() ?? 'N/A'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          if (infraccion['entidad'] != null)
+                            Text(
+                              'Entidad: ${infraccion['entidad'].toString()}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
+                ] else ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.green[700]),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'No se encontraron multas pendientes',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green[900],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1915,6 +2170,127 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  // Tarjeta especial para errores y casos "sin registros"
+  Widget _buildErrorCard(ServiceData service) {
+    // Determinar si es un "no encontrado" o un error real
+    final isNotFound =
+        service.error != null &&
+        (service.error!.toLowerCase().contains('no está registrada') ||
+            service.error!.toLowerCase().contains('no se encontró') ||
+            service.error!.toLowerCase().contains('no se pudo detectar') ||
+            service.error!.toLowerCase().contains('not found'));
+
+    final icon = isNotFound ? Icons.info_outline : Icons.error_outline;
+    final color = isNotFound ? Colors.blue : Colors.red;
+    final statusText = isNotFound ? 'Sin registros' : 'Error en consulta';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color[200]!, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color[50],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getServiceIcon(service.type),
+                  size: 24,
+                  color: color[700],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getServiceTitle(service.type),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: color[50],
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: color[200]!, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 14, color: color[700]),
+                          const SizedBox(width: 6),
+                          Text(
+                            statusText,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: color[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (service.error != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: color[200]!, width: 1),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 16, color: color[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      service.error!,
+                      style: TextStyle(fontSize: 12, color: color[900]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildServiceCard(ServiceData service) {
     final isSuccess = service.success;
     final hasDebt =
@@ -1922,17 +2298,24 @@ class _ResultsScreenState extends State<ResultsScreen> {
         _extractAmount(service.data) != null &&
         _extractAmount(service.data)! > 0;
 
+    // Determinar si es un "no encontrado" para usar azul en vez de rojo
+    final isNotFound =
+        !isSuccess &&
+        service.error != null &&
+        (service.error!.toLowerCase().contains('no está registrada') ||
+            service.error!.toLowerCase().contains('no se encontró') ||
+            service.error!.toLowerCase().contains('not found'));
+
+    final borderColor = !isSuccess
+        ? (isNotFound ? Colors.blue[200]! : Colors.red[200]!)
+        : (hasDebt ? Colors.orange[200]! : Colors.green[200]!);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: !isSuccess
-              ? Colors.red[200]!
-              : (hasDebt ? Colors.orange[200]! : Colors.green[200]!),
-          width: 1.5,
-        ),
+        border: Border.all(color: borderColor, width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -1951,7 +2334,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 height: 48,
                 decoration: BoxDecoration(
                   color: !isSuccess
-                      ? Colors.red[50]
+                      ? (isNotFound ? Colors.blue[50] : Colors.red[50])
                       : (hasDebt ? Colors.orange[50] : Colors.green[50]),
                   shape: BoxShape.circle,
                 ),
@@ -1959,7 +2342,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   _getServiceIcon(service.type),
                   size: 24,
                   color: !isSuccess
-                      ? Colors.red[700]
+                      ? (isNotFound ? Colors.blue[700] : Colors.red[700])
                       : (hasDebt ? Colors.orange[700] : Colors.green[700]),
                 ),
               ),
@@ -1987,25 +2370,42 @@ class _ResultsScreenState extends State<ResultsScreen> {
           ),
           if (!isSuccess && service.error != null) ...[
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red[200]!, width: 1),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, size: 16, color: Colors.red[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      service.error!,
-                      style: TextStyle(fontSize: 12, color: Colors.red[900]),
-                    ),
+            Builder(
+              builder: (context) {
+                final isNotFound =
+                    service.error!.toLowerCase().contains(
+                      'no está registrada',
+                    ) ||
+                    service.error!.toLowerCase().contains('no se encontró') ||
+                    service.error!.toLowerCase().contains('not found');
+
+                final icon = isNotFound
+                    ? Icons.info_outline
+                    : Icons.error_outline;
+                final color = isNotFound ? Colors.blue : Colors.red;
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: color[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: color[200]!, width: 1),
                   ),
-                ],
-              ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(icon, size: 16, color: color[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          service.error!,
+                          style: TextStyle(fontSize: 12, color: color[900]),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ],
@@ -2015,24 +2415,36 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Widget _buildServiceStatus(ServiceData service, bool hasDebt) {
     if (!service.success) {
+      // Determinar si es un "no encontrado" o un error real
+      final isNotFound =
+          service.error != null &&
+          (service.error!.toLowerCase().contains('no está registrada') ||
+              service.error!.toLowerCase().contains('no se encontró') ||
+              service.error!.toLowerCase().contains('no se pudo detectar') ||
+              service.error!.toLowerCase().contains('not found'));
+
+      final icon = isNotFound ? Icons.info_outline : Icons.error;
+      final color = isNotFound ? Colors.blue : Colors.red;
+      final text = isNotFound ? 'Sin registros' : 'Error en consulta';
+
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.red[50],
+          color: color[50],
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.red[200]!, width: 1),
+          border: Border.all(color: color[200]!, width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error, size: 14, color: Colors.red[700]),
+            Icon(icon, size: 14, color: color[700]),
             const SizedBox(width: 6),
             Text(
-              'Error en consulta',
+              text,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.red[700],
+                color: color[700],
               ),
             ),
           ],

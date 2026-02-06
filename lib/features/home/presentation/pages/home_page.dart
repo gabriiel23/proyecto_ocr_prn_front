@@ -62,7 +62,7 @@ class HomeScreen extends StatelessWidget {
           ),
           child: ClipOval(
             child: Image.asset(
-              'assets/logo-ocr-2.png',
+              'assets/LOGO.jpeg',
               width: 80,
               height: 80,
               fit: BoxFit.cover,
@@ -71,7 +71,7 @@ class HomeScreen extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Consulta Fácil',
+          'U-Scan',
           style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w700,

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum ServiceType { luz, matriculacionVehicular, ocr }
+enum ServiceType { luz, matriculacionVehicular, ocr, multas }
 
 class SelectionServiceScreen extends StatefulWidget {
   final Function(ServiceType) onServiceSelected;
@@ -95,7 +95,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           ),
           child: ClipOval(
             child: Image.asset(
-              'assets/logo-ocr-2.png',
+              'assets/LOGO.jpeg',
               width: 80,
               height: 80,
               fit: BoxFit.cover,
@@ -155,6 +155,15 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           subtitle: 'ANT',
           description: 'Información vehicular',
           icon: Icons.directions_car_outlined,
+          requiresCedula: false,
+        ),
+        const SizedBox(height: 12),
+        _buildServiceCard(
+          service: ServiceType.multas,
+          title: 'Multas',
+          subtitle: 'ANT',
+          description: 'Información de multas vehiculares',
+          icon: Icons.traffic_outlined,
           requiresCedula: false,
         ),
         const SizedBox(height: 12),

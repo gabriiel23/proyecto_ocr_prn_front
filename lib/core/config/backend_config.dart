@@ -6,7 +6,7 @@ class BackendConfig {
   // Para desarrollo local: 'http://localhost:3000'
   // Para red local: 'http://192.168.X.X:3000' (reemplazar con tu IP)
   // IP Wi-Fi de la PC: 192.168.1.92
-  static const String baseUrl = 'https://f599-190-12-13-17.ngrok-free.app';
+  static const String baseUrl = 'https://01e1-200-7-82-217.ngrok-free.app';
 
   // Endpoints
   static const String consultarServicioOCR = '/cloud/consultar-servicio-ocr';
@@ -26,6 +26,8 @@ class BackendConfig {
         return 'sri_matriculacion';
       case ServiceType.ocr:
         return 'ocr_cedula';
+      case ServiceType.multas:
+        return 'ant_multas';
       // ignore: unreachable_switch_default
       default:
         return 'desconocido';

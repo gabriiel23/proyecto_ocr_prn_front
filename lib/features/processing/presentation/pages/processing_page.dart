@@ -289,6 +289,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return 'Verificando Matriculación';
       case ServiceType.ocr:
         return 'Digitalizando Documento';
+      case ServiceType.multas:
+        return 'Consultando Multas ANT';
     }
   }
 
@@ -300,6 +302,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return 'Consultando base de datos del SRI...';
       case ServiceType.ocr:
         return 'Extrayendo información de la cédula...';
+      case ServiceType.multas:
+        return 'Verificando multas de tránsito en ANT...';
     }
   }
 
@@ -311,6 +315,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return Icons.directions_car_outlined;
       case ServiceType.ocr:
         return Icons.document_scanner_outlined;
+      case ServiceType.multas:
+        return Icons.traffic_outlined;
     }
   }
 
