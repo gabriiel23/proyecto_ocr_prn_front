@@ -6,6 +6,7 @@ import 'package:proyecto_ocr/features/photo/presentation/pages/photo_page.dart';
 import 'package:proyecto_ocr/features/processing/presentation/pages/processing_page.dart';
 import 'package:proyecto_ocr/features/results/presentation/pages/results_page.dart';
 import 'package:proyecto_ocr/features/selection_service/selection.service_page.dart';
+import 'package:proyecto_ocr/features/claro_input/presentation/pages/claro_input_page.dart';
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
@@ -62,11 +63,25 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) {
         return SelectionServiceScreen(
           onServiceSelected: (ServiceType service) {
-            // Ir a captura de foto pasando el servicio seleccionado
-            context.push('/photo', extra: service);
+            // Si es Claro, ir directamente a input manual (sin cámara)
+            if (service == ServiceType.claroPlanes) {
+              context.push('/claro-input');
+            } else {
+              // Para otros servicios, ir a captura de foto
+              context.push('/photo', extra: service);
+            }
           },
-          onBack: () {},
+          onBack: () => context.pop(),
         );
+      },
+    ),
+
+    // CLARO_INPUT: Input manual de número de celular (sin cámara)
+    GoRoute(
+      path: '/claro-input',
+      name: 'claro-input',
+      builder: (context, state) {
+        return const ClaroInputPage();
       },
     ),
 

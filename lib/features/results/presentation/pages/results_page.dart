@@ -40,11 +40,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         pendingPayments: pendingPayments,
       );
 
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename:
-            'reporte_consulta_\${DateTime.now().millisecondsSinceEpoch}.pdf',
-      );
+      await Printing.sharePdf(bytes: pdfBytes, filename: _getPdfFilename());
     } catch (e) {
       debugPrint('Error generando PDF: \$e');
       if (mounted) {
@@ -78,6 +74,31 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return 'LECTURA DE CÉDULA';
       default:
         return 'DETALLE DE SERVICIO';
+    }
+  }
+
+  String _getPdfFilename() {
+    if (widget.results.isEmpty) return 'Resultado_Consulta.pdf';
+    final type = widget.results.first['serviceType'] as String?;
+    if (type == null) return 'Resultado_Consulta.pdf';
+
+    final now = DateTime.now();
+    final dateStr =
+        '${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}';
+
+    switch (type) {
+      case 'luz_loja':
+        return 'Resultado_Luz_Electrica_$dateStr.pdf';
+      case 'sri_matriculacion':
+        return 'Resultado_Matriculacion_Vehicular_$dateStr.pdf';
+      case 'ocr_cedula':
+        return 'Resultado_Lectura_Cedula_$dateStr.pdf';
+      case 'claro_planes':
+        return 'Resultado_Planes_Claro_$dateStr.pdf';
+      case 'ant_multas':
+        return 'Resultado_Multas_Transito_$dateStr.pdf';
+      default:
+        return 'Resultado_Consulta_$dateStr.pdf';
     }
   }
 
@@ -141,16 +162,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
             placa = data['placa'].toString();
           }
         } else {
-          // Para otros servicios, buscar cédula
+          // Para otros servicios, verificar si es placa o cédula según tipo_detectado
           if (data['identificacion_detectada'] != null &&
               data['identificacion_detectada'].toString().isNotEmpty) {
-            cedula = data['identificacion_detectada'].toString();
+            final tipoDetectado = data['tipo_detectado']?.toString() ?? '';
+            final identificacion = data['identificacion_detectada'].toString();
+
+            if (tipoDetectado == 'placa') {
+              placa = identificacion;
+            } else if (tipoDetectado == 'numero') {
+              // Para Claro, solo guardamos el número
+              cedula = identificacion;
+            } else {
+              cedula = identificacion;
+            }
           }
 
           // Buscar nombre en datos del servicio
-          if (data['datos_servicio'] != null) {
+          // SKIP para claro_planes ya que solo retorna texto plano
+          if (serviceType != 'claro_planes' && data['datos_servicio'] != null) {
             final datosServicio = data['datos_servicio'];
-            if (datosServicio['contribuyente'] != null) {
+            if (datosServicio is Map &&
+                datosServicio['contribuyente'] != null) {
               final contribuyente = datosServicio['contribuyente'];
 
               if (contribuyente is List && contribuyente.length > 1) {
@@ -316,6 +349,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
         final data = result['data'];
         final serviceType = result['serviceType'] ?? '';
 
+        // Skip para claro_planes ya que no tiene estructura de pagos
+        if (serviceType == 'claro_planes') {
+          continue;
+        }
+
         final deuda = _extractAmount(data);
         if (deuda != null && deuda > 0) {
           payments.add(
@@ -342,6 +380,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
     // Buscar en datos_servicio primero
     if (data['datos_servicio'] != null) {
       final datosServicio = data['datos_servicio'];
+
+      // Si no es un mapa (ej: Claro devuelve String), retornar null
+      if (datosServicio is! Map) return null;
 
       // 1. Para servicios con estructura "deuda" (Luz/EERSSA)
       if (datosServicio['deuda'] != null) {
@@ -448,6 +489,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     if (data['datos_servicio'] != null) {
       final datosServicio = data['datos_servicio'];
+
+      // Si no es un mapa, retornar valor por defecto
+      if (datosServicio is! Map) return 'No especificado';
+
       final dateFields = [
         'fecha_vencimiento',
         'fechaVencimiento',
@@ -885,6 +930,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
         return _buildOcrCard(service);
       case 'ant_multas':
         return _buildAntCard(service);
+      case 'claro_planes':
+        return _buildClaroCard(service);
       default:
         return _buildGenericCard(service);
     }
@@ -1285,33 +1332,39 @@ class _ResultsScreenState extends State<ResultsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Puntos
-                Row(
-                  children: [
-                    Icon(Icons.star_outline, color: Colors.blue[700], size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Puntos actuales: ',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    Text(
-                      puntos,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                // Puntos (solo mostrar si tiene puntos)
+                if (puntos != '0' && puntos.isNotEmpty) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.star_outline,
                         color: Colors.blue[700],
+                        size: 20,
                       ),
-                    ),
-                  ],
-                ),
-
-                if (hasMultas) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        'Puntos de licencia: ',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      Text(
+                        puntos,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 20),
                   const Divider(),
+                ],
+
+                if (hasMultas) ...[
                   const SizedBox(height: 16),
 
                   // Total Pendiente
@@ -1322,8 +1375,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: Colors.orange[200]!),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Total Pendiente',
@@ -1333,10 +1386,11 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             color: Colors.orange[900],
                           ),
                         ),
+                        const SizedBox(height: 8),
                         Text(
                           totalPendiente,
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 24,
                             fontWeight: FontWeight.w700,
                             color: Colors.orange[700],
                           ),
@@ -1362,6 +1416,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         'Valor Pendiente',
                         resumen['pendiente'].toString(),
                       ),
+                    const SizedBox(height: 12),
                     if (resumen['convenio'] != null)
                       _buildInfoRow(
                         'Valor Convenio',
@@ -1387,7 +1442,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       color: Colors.grey[800],
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 24),
                   ...infracciones.map((infraccion) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
@@ -1404,22 +1459,58 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
-                                child: Text(
-                                  infraccion['infraccion']?.toString() ?? 'N/A',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.red[900],
+                                child: RichText(
+                                  text: TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: '# Infracción: ',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.grey[700],
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text:
+                                            infraccion['infraccion']
+                                                ?.toString() ??
+                                            'N/A',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.red[900],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              Text(
-                                infraccion['total']?.toString() ?? '\$ 0,00',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.red[700],
-                                ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  if (infraccion['sancion'] != null &&
+                                      infraccion['sancion']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty)
+                                    Text(
+                                      infraccion['sancion'].toString(),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.orange[700],
+                                      ),
+                                    ),
+                                  Text(
+                                    infraccion['total']?.toString() ??
+                                        '\$ 0,00',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1431,6 +1522,19 @@ class _ResultsScreenState extends State<ResultsScreen> {
                               color: Colors.grey[700],
                             ),
                           ),
+                          if (infraccion['sancion'] != null &&
+                              infraccion['sancion']
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty)
+                            Text(
+                              'Sanción: ${infraccion['sancion'].toString()}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.orange[800],
+                              ),
+                            ),
                           Text(
                             'Fecha: ${infraccion['fecha']?.toString() ?? 'N/A'}',
                             style: TextStyle(
@@ -2040,6 +2144,146 @@ class _ResultsScreenState extends State<ResultsScreen> {
               service.data.toString(),
               style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClaroCard(ServiceData service) {
+    // Extraer el texto del resultado
+    final datosServicio = service.data?['datos_servicio'];
+    final resultado = datosServicio is String
+        ? datosServicio
+        : datosServicio.toString();
+    final numero = service.data?['identificacion_detectada'] ?? '';
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.red[50]!, Colors.red[100]!],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red[300]!, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.red.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[600],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.phone_android,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Planes Claro',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Consulta de Saldo',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // Número consultado
+          if (numero.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.red[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.phone, color: Colors.red[600], size: 20),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Número: $numero',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Resultado
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red[200]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.red[700], size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Estado del Plan',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B7280),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  resultado,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF111827),
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

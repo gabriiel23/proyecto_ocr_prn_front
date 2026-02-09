@@ -291,6 +291,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return 'Digitalizando Documento';
       case ServiceType.multas:
         return 'Consultando Multas ANT';
+      case ServiceType.claroPlanes:
+        return 'Consultando Plan Claro';
     }
   }
 
@@ -304,6 +306,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return 'Extrayendo información de la cédula...';
       case ServiceType.multas:
         return 'Verificando multas de tránsito en ANT...';
+      case ServiceType.claroPlanes:
+        return 'Consultando tu plan y saldo en Claro...';
     }
   }
 
@@ -317,6 +321,8 @@ class _ProcessingScreenState extends State<ProcessingScreen>
         return Icons.document_scanner_outlined;
       case ServiceType.multas:
         return Icons.traffic_outlined;
+      case ServiceType.claroPlanes:
+        return Icons.phone_android_outlined;
     }
   }
 

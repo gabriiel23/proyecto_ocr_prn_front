@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:proyecto_ocr/core/widgets/branding_footer.dart';
 
-enum ServiceType { luz, matriculacionVehicular, ocr, multas }
+enum ServiceType { luz, matriculacionVehicular, ocr, multas, claroPlanes }
 
 class SelectionServiceScreen extends StatefulWidget {
   final Function(ServiceType) onServiceSelected;
@@ -38,9 +39,9 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                       _buildHeader(),
                       const SizedBox(height: 32),
                       _buildServicesList(),
-                      const SizedBox(height: 24),
-                      _buildDocumentInfo(),
-                      const SizedBox(height: 40),
+                      const SizedBox(height: 32),
+                      const BrandingFooter(),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -140,7 +141,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           ),
         ),
         const SizedBox(height: 16),
-        _buildServiceCard(
+        _buildServiceCardWithInfo(
           service: ServiceType.luz,
           title: 'Luz Eléctrica',
           subtitle: 'EERSSA',
@@ -149,7 +150,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           requiresCedula: true,
         ),
         const SizedBox(height: 12),
-        _buildServiceCard(
+        _buildServiceCardWithInfo(
           service: ServiceType.matriculacionVehicular,
           title: 'Matriculación',
           subtitle: 'ANT',
@@ -158,7 +159,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           requiresCedula: false,
         ),
         const SizedBox(height: 12),
-        _buildServiceCard(
+        _buildServiceCardWithInfo(
           service: ServiceType.multas,
           title: 'Multas',
           subtitle: 'ANT',
@@ -167,7 +168,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           requiresCedula: false,
         ),
         const SizedBox(height: 12),
-        _buildServiceCard(
+        _buildServiceCardWithInfo(
           service: ServiceType.ocr,
           title: 'Escaneo Cédula',
           subtitle: 'OCR',
@@ -175,7 +176,119 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           icon: Icons.document_scanner_outlined,
           requiresCedula: true,
         ),
+        const SizedBox(height: 12),
+        _buildServiceCardWithInfo(
+          service: ServiceType.claroPlanes,
+          title: 'Planes Claro',
+          subtitle: 'Consulta de Saldo',
+          description: 'Información de tu plan móvil',
+          icon: Icons.phone_android_outlined,
+          requiresCedula: false,
+          requiresPhone: true,
+        ),
       ],
+    );
+  }
+
+  Widget _buildServiceCardWithInfo({
+    required ServiceType service,
+    required String title,
+    required String subtitle,
+    required String description,
+    required IconData icon,
+    required bool requiresCedula,
+    bool requiresPhone = false,
+  }) {
+    final isSelected = _selectedService == service;
+
+    return Column(
+      children: [
+        _buildServiceCard(
+          service: service,
+          title: title,
+          subtitle: subtitle,
+          description: description,
+          icon: icon,
+          requiresCedula: requiresCedula,
+        ),
+        // Mostrar alerta inmediatamente debajo si está seleccionado
+        if (isSelected) ...[
+          const SizedBox(height: 8),
+          _buildDocumentInfoForService(
+            requiresCedula: requiresCedula,
+            requiresPhone: requiresPhone,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDocumentInfoForService({
+    required bool requiresCedula,
+    required bool requiresPhone,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F9FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBAE6FD), width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0EA5E9),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              requiresCedula
+                  ? Icons.credit_card
+                  : requiresPhone
+                  ? Icons.phone_android
+                  : Icons.time_to_leave,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  requiresCedula
+                      ? 'Requiere cédula'
+                      : requiresPhone
+                      ? 'Requiere número celular'
+                      : 'Requiere placa',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0C4A6E),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  requiresCedula
+                      ? 'Foto clara del documento de identidad'
+                      : requiresPhone
+                      ? 'Ingresa tu número de teléfono móvil'
+                      : 'Foto clara de la placa vehicular',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: const Color(0xFF0C4A6E).withValues(alpha: 0.7),
+                    height: 1.3,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.visible,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -228,7 +341,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                 children: [
                   Row(
                     children: [
-                      Flexible(
+                      Expanded(
                         child: Text(
                           title,
                           style: TextStyle(
@@ -238,6 +351,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                                 ? Colors.white
                                 : const Color(0xFF111827),
                           ),
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -274,7 +388,9 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                           : Colors.grey[600],
                       height: 1.4,
                     ),
-                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                    overflow: TextOverflow.fade,
+                    softWrap: true,
                   ),
                 ],
               ),
@@ -287,66 +403,6 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDocumentInfo() {
-    if (_selectedService == null) return const SizedBox.shrink();
-
-    final requiresCedula =
-        _selectedService == ServiceType.luz ||
-        _selectedService == ServiceType.ocr;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F9FF),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFBAE6FD), width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0EA5E9),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              requiresCedula ? Icons.credit_card : Icons.time_to_leave,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  requiresCedula ? 'Requiere cédula' : 'Requiere placa',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0C4A6E),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  requiresCedula
-                      ? 'Foto clara del documento'
-                      : 'Foto clara de la placa',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: const Color(0xFF0C4A6E).withValues(alpha: 0.7),
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
