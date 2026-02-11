@@ -1,6 +1,6 @@
 {
-    "name": "proyecto_ocr",
-    "short_name": "proyecto_ocr",
+    "name": "U-scan",
+    "short_name": "U-scan",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
