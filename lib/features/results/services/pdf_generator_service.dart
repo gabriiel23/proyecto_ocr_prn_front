@@ -12,7 +12,18 @@ class PdfGeneratorService {
     required List<ServiceData> services,
     required List<PendingPayment> pendingPayments,
   }) async {
-    final pdf = pw.Document();
+    // Determinar título del documento basado en el primer servicio
+    String docTitle = 'Reporte de Cosulta';
+    if (services.isNotEmpty) {
+      docTitle = 'Reporte - ${_getServiceTitle(services.first.type)}';
+    }
+
+    final pdf = pw.Document(
+      title: docTitle,
+      author: 'Proyecto OCR',
+      creator: 'Proyecto OCR',
+      subject: 'Resultados de consulta de servicios públicos',
+    );
 
     // Cargar fuente elegante (Open Sans)
     final font = await PdfGoogleFonts.openSansRegular();

@@ -147,7 +147,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       'diciembre',
     ];
 
-    String nombre = 'Resultados';
+    String nombre = '⚫ RESULTADOS';
     String cedula = '';
     String placa = '';
 
@@ -174,7 +174,27 @@ class _ResultsScreenState extends State<ResultsScreen> {
               // Para Claro, solo guardamos el número
               cedula = identificacion;
             } else {
-              cedula = identificacion;
+              // Cédula: Validar si es NO_DETECTADA
+              if (identificacion == 'NO_DETECTADA' || identificacion == 'N/A') {
+                // Intentar extracción local
+                if (data['texto_detectado'] != null) {
+                  final rawText = data['texto_detectado'].toString();
+                  final cedulaLocal = _extractField(rawText, [
+                    'No.',
+                    'NUI.',
+                    'C.I.',
+                  ]);
+                  if (cedulaLocal != 'N/A') {
+                    cedula = cedulaLocal;
+                  } else {
+                    cedula = identificacion;
+                  }
+                } else {
+                  cedula = identificacion;
+                }
+              } else {
+                cedula = identificacion;
+              }
             }
           }
 
@@ -243,59 +263,69 @@ class _ResultsScreenState extends State<ResultsScreen> {
       String apellidos = '';
       String nombres = '';
 
+      // ESTRATEGIA 1: Buscar etiquetas separadas
       for (int i = 0; i < lines.length; i++) {
         final line = lines[i];
         final lineUpper = line.toUpperCase();
 
-        // Buscar línea "APELLIDOS" y capturar las siguientes no-vacías
-        if (lineUpper.contains('APELLIDOS')) {
+        if (lineUpper.contains('APELLIDOS') && !lineUpper.contains('NOMBRES')) {
           int nextIndex = i + 1;
           List<String> apellidosList = [];
-
-          // Capturar hasta 2 líneas después que no sean etiquetas
           while (nextIndex < lines.length && apellidosList.length < 2) {
             final siguiente = lines[nextIndex].trim();
-            final siguienteUpper = siguiente.toUpperCase();
-
-            // Skip si es otra etiqueta
-            if (!siguienteUpper.contains('CONDICIÓN') &&
-                !siguienteUpper.contains('NOMBRES') &&
-                !siguienteUpper.contains('NACIONALIDAD') &&
-                siguiente.isNotEmpty) {
+            if (_isValidNameLine(siguiente)) {
               apellidosList.add(siguiente);
             }
-
-            // Stop si encontramos NOMBRES
-            if (siguienteUpper.contains('NOMBRES')) break;
-
+            if (siguiente.toUpperCase().contains('NOMBRES')) break;
             nextIndex++;
           }
-
           apellidos = apellidosList.join(' ').trim();
-          // debugPrint('[DEBUG OCR] Apellidos encontrados: \$apellidos');
         }
 
-        // Buscar línea "NOMBRES" y capturar la siguiente
-        if (lineUpper.contains('NOMBRES')) {
+        if (lineUpper.contains('NOMBRES') && !lineUpper.contains('APELLIDOS')) {
           int nextIndex = i + 1;
-
           while (nextIndex < lines.length) {
             final siguiente = lines[nextIndex].trim();
-            final siguienteUpper = siguiente.toUpperCase();
-
-            // Skip etiquetas y líneas vacías
-            if (!siguienteUpper.contains('NACIONALIDAD') &&
-                !siguienteUpper.contains('CONDICIÓN') &&
-                !siguienteUpper.contains('FECHA') &&
-                siguiente.isNotEmpty &&
-                !siguiente.contains('861122')) {
-              // Skip números extraños
+            if (_isValidNameLine(siguiente)) {
               nombres = siguiente;
-              // debugPrint('[DEBUG OCR] Nombres encontrados: \$nombres');
               break;
             }
-
             nextIndex++;
+          }
+        }
+      }
+
+      // ESTRATEGIA 2: Buscar etiqueta combinada (Cédulas Antiguas)
+      if (apellidos.isEmpty || nombres.isEmpty) {
+        for (int i = 0; i < lines.length; i++) {
+          final lineUpper = lines[i].toUpperCase();
+
+          if (lineUpper.contains('APELLIDOS Y NOMBRES')) {
+            List<String> validLines = [];
+            int nextIndex = i + 1;
+
+            while (nextIndex < lines.length && validLines.length < 2) {
+              final siguiente = lines[nextIndex].trim();
+
+              // Salir si encontramos otra etiqueta común
+              if (siguiente.toUpperCase().contains('LUGAR') ||
+                  siguiente.toUpperCase().contains('FECHA') ||
+                  siguiente.toUpperCase().contains('NACIONALIDAD') ||
+                  siguiente.toUpperCase().contains('SEXO')) {
+                break;
+              }
+
+              if (_isValidNameLine(siguiente)) {
+                validLines.add(siguiente);
+              }
+              nextIndex++;
+            }
+
+            if (validLines.isNotEmpty) {
+              // Asignamos todo a apellidos para que pase la validación final,
+              // luego lo ajustamos si es necesario o retornamos directo
+              return validLines.join(' ').trim();
+            }
           }
         }
       }
@@ -313,6 +343,43 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
 
     return 'Usuario';
+  }
+
+  // Helper para validar si una línea parece ser parte de un nombre
+  bool _isValidNameLine(String line) {
+    final upper = line.toUpperCase();
+
+    // Ignorar etiquetas conocidas
+    if (upper.contains('APELLIDOS') ||
+        upper.contains('NOMBRES') ||
+        upper.contains('FECHA') ||
+        upper.contains('LUGAR') ||
+        upper.contains('CONDICIÓN') ||
+        upper.contains('NACIONALIDAD') ||
+        upper.contains('CÉDULA') ||
+        upper.contains('IDENTIDAD') ||
+        upper.contains('ESTADO CIVIL') ||
+        upper.contains('INSTRUCCION') ||
+        upper.contains('PROFESION') ||
+        upper.contains('LUGAR DE NACIMIENTO') ||
+        upper.contains('DONANTE')) {
+      return false;
+    }
+
+    // Ignorar líneas con números (fechas, códigos, ids)
+    if (RegExp(r'\d').hasMatch(line)) {
+      return false;
+    }
+
+    // Ignorar líneas con email o símbolos raros
+    if (line.contains('@') || line.contains('www')) {
+      return false;
+    }
+
+    // Ignorar textos muy cortos
+    if (line.length < 3) return false;
+
+    return true;
   }
 
   // Procesar datos de servicios
@@ -950,7 +1017,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final textBack = ocrReverso.toString();
 
     // --- EXTRACCIÓN FRONTAL ---
-    final cedula = service.data!['identificacion_detectada'] ?? 'N/A';
+    // --- EXTRACCIÓN FRONTAL ---
+    String cedula = service.data!['identificacion_detectada']?.toString() ?? '';
+    // Fallback: Si no hay cédula detectada por el backend, buscar "No." o "NUI."
+    if (cedula.isEmpty || cedula == 'N/A' || cedula == 'NO_DETECTADA') {
+      debugPrint('[OCR DEBUG] Buscando cédula en texto frontal...');
+      cedula = _extractField(textFront, ['No.', 'NUI.', 'C.I.']);
+      debugPrint('[OCR DEBUG] Cédula extraída: $cedula');
+    }
+
     // Nombre ya extraído, pero podemos pulirlo
     final nombre = _extractNameFromOCR(textFront);
 
@@ -968,11 +1043,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
     // Lugar
     String lugarNac = _extractFieldMultiLine(textFront, [
       'LUGAR DE NACIMIENTO',
-    ], 2); // A veces son 2 líneas
+    ], 3); // Aumentado a 3 líneas
     // Sexo
     String sexo = _extractField(textFront, ['SEXO']);
     // No Documento
     String noDoc = _extractField(textFront, ['No. DOCUMENTO', 'DOCUMENTO']);
+
+    // Estado Civil (puede estar en front o back)
+    String estadoCivil = _extractField(textFront, [
+      'ESTADO CIVIL',
+      'ESTADO CML',
+      'ESTADO',
+    ]);
 
     // --- EXTRACCIÓN REVERSO ---
     String padre = _extractFieldMultiLine(textBack, [
@@ -983,11 +1065,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
       'NOMBRES DE LA MADRE',
       'DE LA MADRE',
     ], 1);
-    String estadoCivil = _extractField(textBack, [
-      'ESTADO CIVIL',
-      'ESTADO CML',
-      'ESTADO',
-    ]);
+
+    // Fallback de Estado Civil en reverso si no se encontró en el frente
+    if (estadoCivil == 'N/A' || estadoCivil.isEmpty) {
+      estadoCivil = _extractField(textBack, [
+        'ESTADO CIVIL',
+        'ESTADO CML',
+        'ESTADO',
+      ]);
+    }
+
     String conyuge = _extractFieldMultiLine(textBack, [
       'CONYUGE',
       'CONVIVIENTE',
@@ -1141,48 +1228,35 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
-  // Extrae valor buscando keyword hasta el salto de linea, ignorando basura
-  String _extractField(String text, List<String> keywords) {
+  // --- MÉTODOS DE EXTRACCIÓN CAMPO POR CAMPO MEJORADOS ---
+
+  String _extractField(String text, List<String> labels) {
     if (text.isEmpty) return 'N/A';
-    final lines = text.split('\n').map((l) => l.trim()).toList();
+    final lines = text.split('\n');
 
     for (int i = 0; i < lines.length; i++) {
-      final lineUpper = lines[i].toUpperCase();
-      for (var keyword in keywords) {
-        if (lineUpper.contains(keyword)) {
-          // Caso 1: Valor en la misma línea con ":" o espacio
-          // "FECHA DE NACIMIENTO 22 NOV 1986"
-          String val = lines[i]
-              .substring(lineUpper.indexOf(keyword) + keyword.length)
-              .trim();
-          // Limpiar caracteres sucios iniciales like ":" o "."
-          val = val.replaceAll(RegExp(r'^[:\.\-\s]+'), '');
+      final line = lines[i].trim();
+      final lineUpper = line.toUpperCase();
 
-          if (val.length > 2) {
-            return val; // Encontramos algo util en la misma linea
+      for (var label in labels) {
+        final labelUpper = label.toUpperCase();
+        if (lineUpper.contains(labelUpper)) {
+          // CASO 1: El valor está en la misma línea (ej: SEXO M)
+          String value = line
+              .substring(lineUpper.indexOf(labelUpper) + labelUpper.length)
+              .trim();
+          value = value.replaceAll(RegExp(r'[:.]'), '').trim();
+
+          if (value.isNotEmpty && value.length > 1) {
+            return _cleanValue(value, labelUpper);
           }
 
-          // Caso 2: Buscar en lineas siguientes (hasta 4)
-          // "NACIONALIDAD" (i) -> "33333" (i+1) -> "NUI..." (i+2) -> "ECUATORIANA" (i+3)
-          int lookAhead = 1;
-          while (lookAhead <= 4 && (i + lookAhead) < lines.length) {
-            String candidate = lines[i + lookAhead].trim();
-            if (_isLabel(candidate)) break; // Stop if hitting another label
-
-            // Filtros de ruido:
-            // - Solo números
-            // - Empieza con NUI
-            // - Muy corto
-            final isOnlyNumbers = RegExp(r'^[0-9\.]+$').hasMatch(candidate);
-            final isNUI = candidate.toUpperCase().startsWith('NUI');
-
-            if (candidate.isNotEmpty &&
-                !isOnlyNumbers &&
-                !isNUI &&
-                candidate.length > 2) {
-              return candidate;
+          // CASO 2: El valor está en la siguiente línea
+          if (i + 1 < lines.length) {
+            String nextLine = lines[i + 1].trim();
+            if (nextLine.isNotEmpty && !_isLabel(nextLine)) {
+              return _cleanValue(nextLine, labelUpper);
             }
-            lookAhead++;
           }
         }
       }
@@ -1190,52 +1264,92 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return 'N/A';
   }
 
-  // Extrae multiples lineas (para nombres padres o lugar nac)
   String _extractFieldMultiLine(
     String text,
-    List<String> keywords,
-    int linesToTake,
+    List<String> labels,
+    int maxLines,
   ) {
     if (text.isEmpty) return 'N/A';
-    final lines = text.split('\n').map((l) => l.trim()).toList();
+    final lines = text.split('\n');
 
     for (int i = 0; i < lines.length; i++) {
-      final lineUpper = lines[i].toUpperCase();
-      for (var keyword in keywords) {
-        if (lineUpper.contains(keyword)) {
-          List<String> result = [];
-          int taken = 0;
-          int current = i + 1;
+      final line = lines[i].trim();
+      final lineUpper = line.toUpperCase();
 
-          while (taken < linesToTake && current < lines.length) {
-            String val = lines[current].trim();
-            if (val.isNotEmpty && !_isLabel(val)) {
-              result.add(val);
-              taken++;
-            } else if (_isLabel(val)) {
-              break; // Chocamos con otra etiqueta
-            }
-            current++;
+      for (var label in labels) {
+        final labelUpper = label.toUpperCase();
+        if (lineUpper.contains(labelUpper)) {
+          List<String> values = [];
+
+          // Verificar si hay algo en la misma línea después del label
+          String sameLineVal = line
+              .substring(lineUpper.indexOf(labelUpper) + labelUpper.length)
+              .trim();
+          sameLineVal = sameLineVal.replaceAll(RegExp(r'[:.]'), '').trim();
+          if (sameLineVal.isNotEmpty && sameLineVal.length > 2) {
+            values.add(sameLineVal);
           }
 
-          if (result.isNotEmpty) return result.join(' ');
+          // Buscar en líneas siguientes
+          int nextIndex = i + 1;
+          while (nextIndex < lines.length && values.length < maxLines) {
+            String nextLine = lines[nextIndex].trim();
+            if (_isLabel(nextLine)) break;
+
+            if (nextLine.isNotEmpty) {
+              values.add(nextLine);
+            }
+            nextIndex++;
+          }
+
+          if (values.isNotEmpty) {
+            return values.join(' ').trim();
+          }
         }
       }
     }
     return 'N/A';
+  }
+
+  String _cleanValue(String value, String label) {
+    // Limpiezas específicas por campo
+    if (label.contains('SEXO')) {
+      if (value.toUpperCase() == 'M') return 'MASCULINO';
+      if (value.toUpperCase() == 'F') return 'FEMENINO';
+      if (value.toUpperCase().startsWith('H')) return 'HOMBRE';
+      if (value.toUpperCase().startsWith('M') &&
+          value.toUpperCase().contains('UJER')) {
+        return 'MUJER';
+      }
+    }
+
+    // Limpiar caracteres extraños del inicio
+    // Excepción: "No. ..."
+    if (label.contains('DOCUMENTO') ||
+        label.contains('NO.') ||
+        label == 'NO.') {
+      final cleaned = value.replaceAll(RegExp(r'^[:.]'), '').trim();
+      debugPrint('[OCR DEBUG] Limpiando Doc/No: "$value" -> "$cleaned"');
+      return cleaned;
+    }
+
+    return value.replaceAll(RegExp(r'^[^a-zA-Z0-9]+'), '').trim();
   }
 
   bool _isLabel(String text) {
     final t = text.toUpperCase();
-    return t.contains('FECHA') ||
-        t.contains('LUGAR') ||
-        t.contains('NOMBRE') ||
-        t.contains('APELLIDO') ||
+    return t.contains('APELLIDOS') ||
+        t.contains('NOMBRES') ||
         t.contains('NACIONALIDAD') ||
-        t.contains('SEXO') ||
+        t.contains('LUGAR') ||
+        t.contains('FECHA') ||
         t.contains('ESTADO') ||
+        t.contains('NOMBRE') ||
         t.contains('DONANTE') ||
-        t.contains('INSTRUCCION');
+        t.contains('SEXO') ||
+        t.contains('INSTRUCCION') ||
+        t.contains('PROFESION') ||
+        t.contains('DOCUMENTO');
   }
 
   Widget _buildAntCard(ServiceData service) {

@@ -7,6 +7,7 @@ class BackendConfig {
   // Para red local: 'http://192.168.X.X:3000' (reemplazar con tu IP)
   // IP Wi-Fi de la PC: 192.168.1.92
   static const String baseUrl = 'https://project-cloud-ipvg.onrender.com';
+  // static const String baseUrl = 'https://e8b4-190-12-13-17.ngrok-free.app';
 
   // Endpoints
   static const String consultarServicioOCR = '/cloud/consultar-servicio-ocr';
@@ -15,7 +16,13 @@ class BackendConfig {
   static String get consultarServicioUrl => '$baseUrl$consultarServicioOCR';
 
   // Tipos de servicio disponibles
-  static const List<String> serviceTypes = ['luz_loja', 'sri_matriculacion','ocr_cedula','ant_multas','claro_planes'];
+  static const List<String> serviceTypes = [
+    'luz_loja',
+    'sri_matriculacion',
+    'ocr_cedula',
+    'ant_multas',
+    'claro_planes',
+  ];
 
   /// Mapea el enum ServiceType del frontend al string esperado por el backend
   static String getServiceTypeString(ServiceType service) {

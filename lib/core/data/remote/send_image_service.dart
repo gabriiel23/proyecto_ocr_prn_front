@@ -33,14 +33,12 @@ Future<http.Response> sendImageToBackend({
   }
 
   final body = jsonEncode(bodyMap);
-  final response = await http.post(
-    Uri.parse(backendUrl),
-    headers: {
-      'Content-Type': 'application/json',
-      'bypass-tunnel-reminder': 'true',
-      'ngrok-skip-browser-warning': 'true',
-    },
-    body: body,
-  );
+  final response = await http
+      .post(
+        Uri.parse(backendUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      )
+      .timeout(const Duration(seconds: 120)); // Aumentado a 120s para OCR
   return response;
 }

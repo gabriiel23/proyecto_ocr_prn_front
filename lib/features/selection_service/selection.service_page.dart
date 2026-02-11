@@ -166,15 +166,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           description: 'Información de multas vehiculares',
           icon: Icons.traffic_outlined,
           requiresCedula: false,
-        ),
-        const SizedBox(height: 12),
-        _buildServiceCardWithInfo(
-          service: ServiceType.ocr,
-          title: 'Escaneo Cédula',
-          subtitle: 'OCR',
-          description: 'Lectura automática',
-          icon: Icons.document_scanner_outlined,
-          requiresCedula: true,
+          requiresPlateOrCedula: true,
         ),
         const SizedBox(height: 12),
         _buildServiceCardWithInfo(
@@ -185,6 +177,15 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           icon: Icons.phone_android_outlined,
           requiresCedula: false,
           requiresPhone: true,
+        ),
+        const SizedBox(height: 12),
+        _buildServiceCardWithInfo(
+          service: ServiceType.ocr,
+          title: 'Escaneo Cédula',
+          subtitle: 'OCR',
+          description: 'Lectura automática',
+          icon: Icons.document_scanner_outlined,
+          requiresCedula: true,
         ),
       ],
     );
@@ -198,6 +199,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
     required IconData icon,
     required bool requiresCedula,
     bool requiresPhone = false,
+    bool requiresPlateOrCedula = false,
   }) {
     final isSelected = _selectedService == service;
 
@@ -217,6 +219,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
           _buildDocumentInfoForService(
             requiresCedula: requiresCedula,
             requiresPhone: requiresPhone,
+            requiresPlateOrCedula: requiresPlateOrCedula,
           ),
         ],
       ],
@@ -226,6 +229,7 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
   Widget _buildDocumentInfoForService({
     required bool requiresCedula,
     required bool requiresPhone,
+    bool requiresPlateOrCedula = false,
   }) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -247,6 +251,8 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                   ? Icons.credit_card
                   : requiresPhone
                   ? Icons.phone_android
+                  : requiresPlateOrCedula
+                  ? Icons.fact_check_outlined
                   : Icons.time_to_leave,
               color: Colors.white,
               size: 20,
@@ -262,6 +268,8 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                       ? 'Requiere cédula'
                       : requiresPhone
                       ? 'Requiere número celular'
+                      : requiresPlateOrCedula
+                      ? 'Requiere Cédula o Placa'
                       : 'Requiere placa',
                   style: const TextStyle(
                     fontSize: 14,
@@ -275,6 +283,8 @@ class _SelectionServiceScreenState extends State<SelectionServiceScreen> {
                       ? 'Foto clara del documento de identidad'
                       : requiresPhone
                       ? 'Ingresa tu número de teléfono móvil'
+                      : requiresPlateOrCedula
+                      ? 'Foto clara de la placa del vehículo o del documento de identidad'
                       : 'Foto clara de la placa vehicular',
                   style: TextStyle(
                     fontSize: 13,
